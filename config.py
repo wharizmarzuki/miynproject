@@ -1,0 +1,5 @@
+INFLUXDB_URL = "http://localhost:8086"
+INFLUXDB_TOKEN = "DAhLUMLIIMtFZStnq05Wl8eL9jFiaOeOyeHEe8hQtRKfXvgsV5ch2rTKK5w2ffjWk4euDq_y0hKSOmgH2P1urw=="
+INFLUXDB_ORG = "docs"
+INFLUXDB_BUCKET = "DeviceMetric"
+SNMP_COMMUNITY = "fyp"

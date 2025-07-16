@@ -1,0 +1,11 @@
+FluxRecord() table: 0, {
+    'result': '_result',
+    'table': 0,
+    '_start':datetime.datetime(2025, 7, 13, 2, 51, 46, 35777, tzinfo=datetime.timezone.utc),
+    '_stop': datetime.datetime(2025, 7, 14, 2, 51, 46, 35777, tzinfo=datetime.timezone.utc),
+    '_time': datetime.datetime(2025, 7, 13, 6, 58, 48, 508939, tzinfo=datetime.timezone.utc),
+    '_value': 3.0, '_field': 'cpu_utilization',
+    '_measurement': 'device_metrics',
+    'device_name': 'R1',
+    'host': '192.168.50.101',
+    'model_name': 'CISCO7206VXR'}

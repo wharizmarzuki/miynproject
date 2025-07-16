@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+sqlalchemy
+pysnmp
+influxdb_client
