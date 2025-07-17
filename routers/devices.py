@@ -1,10 +1,10 @@
 import ipaddress
 import asyncio
-from fastapi import Depends, APIRouter
+from fastapi import Depends, APIRouter, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from snmp import schemas, models, database
-from services import snmp_service
+from services import snmp_service, device_service
 
 router = APIRouter(prefix="/device", tags=["Device"])
 get_db = database.get_db
@@ -37,32 +37,21 @@ async def discovery(
 
 
 @router.post("/", response_model=None)
-async def create_device(device_info: schemas.DeviceInfo, db: Session = Depends(get_db)):
+async def create_device_endpoint(device_info: schemas.DeviceInfo, db: Session = Depends(get_db)):
+    """HTTP endpoint for creating a device"""
     try:
-        new_device = models.Device(
-            hostname=device_info.hostname,
-            ip_address=device_info.ip_address,
-            number_of_ports=int(device_info.number_of_ports),
-        )
-        db.add(new_device)
-        db.commit()
-        db.refresh(new_device)
-        return None
+        await device_service.create_device(device_info, db)
+        return {"message": "Device created successfully"}
     except Exception as e:
-        print(f"Database error creating device: {e}")
-        db.rollback()
-        return None
-
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[schemas.DeviceInfo])
-async def retrieve_all(db: Session = Depends(get_db)):
-    registered_device = db.query(models.Device).all()
-    return registered_device
+async def get_all_devices_endpoint(db: Session = Depends(get_db)):
+    """HTTP endpoint for getting all devices"""
+    return device_service.get_all_devices(db)
 
 
 @router.get("/{ip}", response_model=schemas.DeviceInfo)
-async def retrieve(ip: str, db: Session = Depends(get_db)):  # Added type hint
-    registered_device = (
-        db.query(models.Device).filter(models.Device.ip_address == ip).first()
-    )  # Fixed filter
-    return registered_device
+async def get_devices_endpoint(ip: str, db: Session = Depends(get_db)):
+    """HTTP endpoint for getting single devices"""
+    return device_service.get_device_by_ip(ip, db)

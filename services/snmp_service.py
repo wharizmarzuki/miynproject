@@ -11,9 +11,8 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
 )
-import config
+from config import SNMP_COMMUNITY
 from snmp import schemas
-from routers import devices
 from services import device_service
 
 router = APIRouter()
@@ -24,7 +23,7 @@ async def snmp_get(
     host: str,
     oids: list[str],
 ):
-    community = config.SNMP_COMMUNITY
+    community = SNMP_COMMUNITY
     port = 161
     transport_address = (host, port)
     try:
