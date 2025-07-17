@@ -8,3 +8,5 @@ models.Base.metadata.create_all(engine)
 
 app = FastAPI()
 app.include_router(devices.router)
+app.include_router(device_polling.router)
+app.include_router(device_db.router)

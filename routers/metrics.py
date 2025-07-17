@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import SYNCHRONOUS
-from services.config import INFLUXDB_BUCKET, INFLUXDB_ORG, INFLUXDB_TOKEN, INFLUXDB_URL
+from config import INFLUXDB_BUCKET, INFLUXDB_ORG, INFLUXDB_TOKEN, INFLUXDB_URL
 from snmp import schemas
 
 router = APIRouter(prefix="/metric", tags=["Metric"])

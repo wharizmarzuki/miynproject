@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import FastAPI
+from fastapi import APIRouter
 from typing import Optional
 from sqlalchemy.orm import Session
 from pysnmp.hlapi.v3arch.asyncio import (
@@ -11,10 +11,12 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
 )
+import config
 from snmp import schemas
 from routers import devices
+from services import device_service
 
-router = FastAPI()
+router = APIRouter()
 
 
 @router.get("/snmpget")
@@ -84,13 +86,12 @@ async def device_discovery(
             ip_address=host,
             **oid_values,
         )
-
-        # Call create_device directly with the db session
+        
         try:
-            await devices.create_device(device_info, db)
+            await device_service.create_device(device_info, db) 
             return device_info
         except Exception as e:
             print(f"Error saving device {host}: {e}")
-            return device_info  # Return device info even if save fails
+            return device_info
 
     return None
