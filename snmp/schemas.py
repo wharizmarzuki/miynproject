@@ -10,6 +10,7 @@ class DeviceInfo(BaseModel):
 
 
 class DeviceMetrics(BaseModel):
+    status: str = Field(default="Unreacheable", description="Device Status")
     host: str = Field(..., description="Device IP address")
     uptime: str = Field(default="N/A", description="System uptime")
     device_name: str = Field(default="Unknown", description="Device system name")

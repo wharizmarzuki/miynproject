@@ -3,7 +3,7 @@ import asyncio
 from fastapi import Depends, APIRouter, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from snmp import schemas, models, database
+from snmp import schemas, database
 from services import snmp_service, device_service
 
 router = APIRouter(prefix="/device", tags=["Device"])

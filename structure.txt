@@ -1,26 +1,54 @@
-your_project/
-├── .env                                   # Environment variables
-├── main.py                                # FastAPI app init + router includes only
-├── config.py                              # INFLUXDB_URL, TOKEN, ORG, BUCKET constants
-├── dependencies.py                        # get_db(), get_influxdb_client()
-├── requirements.txt                       # pip dependencies
-├── .gitignore                             # .env, __pycache__, etc.
-├── .env.example                           # Template for .env file
-├── snmp/
-│   ├── __init__.py
-│   ├── models.py                          # Your existing SQLAlchemy models
-│   ├── schemas.py                         # Your existing Pydantic schemas
-│   ├── database.py                        # Your existing database setup
-│   └── influx_operation.py                # Your existing InfluxDB operations
-├── routers/
-│   ├── __init__.py
-│   ├── devices.py                         # discovery(), create_device(), retrieve_all()
-│   ├── polling.py                         # poll_device_metrics(), polling_all()
-│   └── metrics.py                         # write_device_metric()
+snmp_monitoring_api/
+├── .env                           # Environment variables (not in repo)
+├── .env.example                   # Template for environment setup
+├── main.py                        # FastAPI app initialization only
+├── config/
+│   ├── init.py
+│   ├── settings.py               # Pydantic settings from environment
+│   └── database.py               # Database connection setup
+├── core/
+│   ├── init.py
+│   ├── dependencies.py           # Dependency injection (get_db, get_current_user)
+│   ├── security.py               # Authentication/authorization
+│   ├── exceptions.py             # Custom exception classes
+│   └── middleware.py             # CORS, logging, rate limiting
+├── models/
+│   ├── init.py
+│   ├── device.py                 # Device SQLAlchemy models
+│   └── user.py                   # User models (if needed)
+├── schemas/
+│   ├── init.py
+│   ├── device.py                 # Device Pydantic schemas
+│   ├── metrics.py                # Metrics Pydantic schemas
+│   └── responses.py              # API response schemas
 ├── services/
-│   ├── __init__.py
-│   ├── snmp_service.py                    # device_discovery(), snmp_get() (if exists)
-│   └── influx_service.py                  # InfluxDB write operations (if separate from influx_operation.py)
-└── utils/
-   ├── __init__.py
-   └── network_utils.py                   # Network address handling logic from discovery()
+│   ├── init.py
+│   ├── device_service.py         # Device business logic
+│   ├── snmp_service.py           # SNMP operations
+│   ├── influx_service.py         # InfluxDB operations
+│   └── monitoring_service.py     # Polling and monitoring logic
+├── repositories/
+│   ├── init.py
+│   ├── device_repository.py      # Device database operations
+│   └── base_repository.py        # Base CRUD operations
+├── routers/
+│   ├── init.py
+│   ├── devices.py                # Device API endpoints
+│   ├── metrics.py                # Metrics API endpoints
+│   ├── monitoring.py             # Monitoring/polling endpoints
+│   └── health.py                 # Health check endpoints
+├── utils/
+│   ├── init.py
+│   ├── network_utils.py          # Network utilities
+│   ├── logging.py                # Logging configuration
+│   └── validators.py             # Custom validators
+├── tests/
+│   ├── init.py
+│   ├── test_devices.py
+│   ├── test_snmp.py
+│   └── conftest.py               # Test fixtures
+├── migrations/                   # Database migrations
+├── docker-compose.yml            # Development environment
+├── Dockerfile                    # Production container
+├── requirements.txt              # Dependencies
+└── README.md                     # Documentation

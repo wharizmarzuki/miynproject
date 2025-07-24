@@ -21,24 +21,41 @@ query_api = client.query_api()
 router = APIRouter(prefix="/db")
 
 
+# async def write_device_polling(request: DeviceMetrics):
+#     try:
+#         write_api = client.write_api(write_options=SYNCHRONOUS)
+#         point = (
+#             Point("device_metrics")
+#             .tag("host", request.host)
+#             .tag("device_name", request.device_name)
+#             .tag("model_name", request.model_name)
+#             .field("uptime", request.uptime)
+#             .field("cpu_utilization", float(request.cpu_utilization))
+#             .field("memory_utilization", float(request.memory_utilization))
+#         )
+#         write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to write data: {str(e)}")
+
+@router.post("/")
 async def write_device_polling(request: DeviceMetrics):
     try:
         write_api = client.write_api(write_options=SYNCHRONOUS)
         point = (
             Point("device_metrics")
-            .tag("host", request.host)
-            .tag("device_name", request.device_name)
-            .tag("model_name", request.model_name)
-            .field("uptime", request.uptime)
-            .field("cpu_utilization", float(request.cpu_utilization))
-            .field("memory_utilization", float(request.memory_utilization))
+            .tag("host", "1")
+            .tag("device_name", "1")
+            .tag("model_name", "cisco")
+            .field("uptime", "20")
+            .field("cpu_utilization", float(10))
+            .field("memory_utilization", float(15))
         )
         write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=point)
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write data: {str(e)}")
 
-
+@router.get("/")
 def query():
     query_api = client.query_api()
 
@@ -47,7 +64,7 @@ def query():
     |> filter(fn: (r) => r["_measurement"] == "device_metrics")
     |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
     |> keep(columns: ["_time", "device_name", "host", "model_name", "cpu_utilization", "memory_utilization", "uptime"])"""
-    tables = query_api.query(query, org="docs")
+    tables = query_api.query(query, org=(INFLUXDB_ORG))
 
     clean_up = []
     for table in tables:
@@ -55,8 +72,3 @@ def query():
             clean_up.append(record.row[2:])
 
     return clean_up
-
-
-@router.get("/")
-def print():
-    print(f"Influx token is ={INFLUXDB_TOKEN}")
