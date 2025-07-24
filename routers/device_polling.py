@@ -3,13 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from prometheus_client import generate_latest, push_to_gateway
 from snmp import database, schemas, models
-from services import snmp_service, influx_service
+from services import snmp_service
 from snmp.prometheus_model import device_up, device_info, device_cpu_utilization, device_uptime_seconds, device_memory_utilization, registry
 from config import PUSHGATEWAY_URL
 
 router = APIRouter(prefix="/polling", tags=["Polling"])
 get_db = database.get_db
-client = influx_service.client
 
 
 @router.get("/")

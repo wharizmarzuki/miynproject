@@ -1,6 +1,2 @@
-INFLUXDB_URL = "http://localhost:8086"
-INFLUXDB_TOKEN = "8tDvXEoFSMbBtDD_5drH8-LcSZgBaB-AK6US38GWNhmHcbkIpZvm7-UKPRFO753-IfP-rtPgig_e3SGOphcotg=="
-INFLUXDB_ORG = "snmp"
-INFLUXDB_BUCKET = "DeviceMetric"
 SNMP_COMMUNITY = "fyp"
 PUSHGATEWAY_URL = "localhost:9091"
