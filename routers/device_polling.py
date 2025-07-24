@@ -1,11 +1,11 @@
 import asyncio
-from fastapi import APIRouter, Depends
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from prometheus_client import generate_latest
+from prometheus_client import generate_latest, push_to_gateway
 from snmp import database, schemas, models
 from services import snmp_service, influx_service
 from snmp.prometheus_model import device_up, device_info, device_cpu_utilization, device_uptime_seconds, device_memory_utilization, registry
+from config import PUSHGATEWAY_URL
 
 router = APIRouter(prefix="/polling", tags=["Polling"])
 get_db = database.get_db
@@ -24,10 +24,20 @@ async def poll_all_device(db: Session = Depends(get_db)):
     tasks = [limited_polling(ip) for ip in host_addresses]
     await asyncio.gather(*tasks)
 
-    return Response(
-        content=generate_latest(registry),
-        media_type="text/plain; version=0.0.4"
-    )
+    try:
+        push_to_gateway(
+            gateway=PUSHGATEWAY_URL,
+            job='snmp_polling',
+            registry=registry,
+            grouping_key={'instance': 'snmp_poller'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to push metrics: {str(e)}")
+
+        return {
+        "message": f"Successfully polled {len(host_addresses)} devices and pushed metrics to Push Gateway",
+        "devices_polled": len(host_addresses)
+    }
 
 @router.get("/{host}")
 async def poll_device(host: str):

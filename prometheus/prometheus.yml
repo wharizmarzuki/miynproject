@@ -1,20 +1,22 @@
 global:
   scrape_interval: 10s
+
 rule_files:
   - "alert_rules.yml"
+
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-            - 'alert-manager:9093'
+          - 'alert-manager:9093'
+
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets:
-          - 'prometheus:9090'
-  - job_name: 'polling'
+        - 'localhost:9090'
+  
+  - job_name: 'pushgateway'
     static_configs:
       - targets:
-          - '0.0.0.0:8000'
-    metrics_path: '/polling'
-    scrape_interval: 15s
+        - 'pushgateway:9091'
