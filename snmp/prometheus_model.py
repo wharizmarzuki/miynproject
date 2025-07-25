@@ -43,34 +43,34 @@ device_memory_utilization = Gauge(
 interface_admin_status = Gauge(
     'interface_admin_status',
     'Interface administrative status',
-    ['host', 'device_name', 'interface_index', 'interface_name'],
+    ['host', 'interface_index', 'interface_name'],
     registry=registry
 )
 
 interface_oper_status = Gauge(
     'interface_operational_status',
     'Interface operational status',
-    ['host', 'device_name', 'interface_index', 'interface_name'],
+    ['host', 'interface_index', 'interface_name'],
     registry=registry
 )
 
-interface_octets = Counter(
+interface_octets = Gauge(
     'interface_octets_total',
     'Total octets transmitted/received', 
-    ['host', 'device_name', 'interface_index', 'interface_name', 'direction'],
+    ['host', 'interface_index', 'interface_name', 'direction'],
     registry=registry
 )
 
-interface_errors = Counter(
+interface_errors = Gauge(
     'interface_errors_total',
     'Total interface errors',
-    ['host', 'device_name', 'interface_index', 'interface_name', 'direction'],
+    ['host', 'interface_index', 'interface_name', 'direction'],
     registry=registry
 )
 
-interface_discards = Counter(
+interface_discards = Gauge(
     'interface_discards_total',
     'Total interface discards',
-    ['host', 'device_name', 'interface_index', 'interface_name', 'direction'],
+    ['host', 'interface_index', 'interface_name', 'direction'],
     registry=registry
 )

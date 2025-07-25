@@ -1,9 +1,10 @@
 import asyncio
-from fastapi import APIRouter
 from typing import Optional
+from venv import create
 from sqlalchemy.orm import Session
 from pysnmp.hlapi.v3arch.asyncio import (
     get_cmd,
+    bulk_cmd,
     SnmpEngine,
     CommunityData,
     UdpTransportTarget,
@@ -15,10 +16,6 @@ from config import SNMP_COMMUNITY
 from snmp import schemas
 from services import device_service
 
-router = APIRouter()
-
-
-@router.get("/snmpget")
 async def snmp_get(
     host: str,
     oids: list[str],
@@ -65,6 +62,49 @@ async def snmp_get(
         return None
     except Exception:
         return None
+
+
+async def snmp_bulk_walk(host: str, oids: list[str]):
+    community = SNMP_COMMUNITY
+    port = 161
+    transport_address = (host, port)
+    snmp_engine = SnmpEngine()
+    oid_objects = [ObjectType(ObjectIdentity(oid)) for oid in oids]
+   
+    results = []
+    try:
+        # Await the bulk_cmd call - it returns a single result, not an iterator
+        errorIndication, errorStatus, errorIndex, varBindTable = await bulk_cmd(
+            snmp_engine,
+            CommunityData(community, mpModel=1),
+            await UdpTransportTarget.create(transport_address),
+            ContextData(),
+            0, 25,  # non-repeaters, max-repetitions
+            *oid_objects
+        )
+        
+        if errorIndication:
+            return {"success": False, "error": str(errorIndication)}
+        
+        if errorStatus:
+            return {"success": False, "error": f"{errorStatus.prettyPrint()} at {errorIndex and varBindTable[int(errorIndex) - 1][0] or '?'}"} # type: ignore
+        
+        for var_bind in varBindTable:
+            oid_parts = var_bind[0].prettyPrint().split('.')
+            base_oid = '.'.join(oid_parts[:-1])
+            index = oid_parts[-1]
+            value = var_bind[1].prettyPrint()
+           
+            results.append({
+                "base_oid": base_oid,
+                "index": index,
+                "value": value
+            })
+           
+        return {"success": True, "data": results}
+       
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 async def device_discovery(

@@ -32,7 +32,7 @@ DISCOVERY_OIDS = {
     "interface_count": "1.3.6.1.2.1.2.1.0",  # ifNumber
 }
 
-POLLING_OIDS = {
+DEVICE_OIDS = {
     "uptime": "1.3.6.1.2.1.1.3.0",
     "device_name": "1.3.6.1.2.1.1.5.0",
     "services": "1.3.6.1.2.1.1.7.0",
@@ -41,4 +41,17 @@ POLLING_OIDS = {
     "memory_pool_1": "1.3.6.1.4.1.9.9.48.1.1.1.5.1",
     "memory_pool_2": "1.3.6.1.4.1.9.9.48.1.1.1.5.2",
     "memory_pool_13": "1.3.6.1.4.1.9.9.48.1.1.1.5.13",
+}
+
+INTERFACE_OIDS = {
+    "interface_index": "1.3.6.1.2.1.2.2.1.1",
+    "interface_description": "1.3.6.1.2.1.2.2.1.2",
+    "interface_admin_status": "1.3.6.1.2.1.2.2.1.7",
+    "interface_operational_status": "1.3.6.1.2.1.2.2.1.8",
+    "inbound_octets": "1.3.6.1.2.1.2.2.1.10",
+    "outbound_octets": "1.3.6.1.2.1.2.2.1.16",
+    "inbound_errors": "1.3.6.1.2.1.2.2.1.14",
+    "outbound_errors": "1.3.6.1.2.1.2.2.1.20",
+    "inbound_discards": "1.3.6.1.2.1.2.2.1.13",
+    "outbound_discards": "1.3.6.1.2.1.2.2.1.19",
 }
