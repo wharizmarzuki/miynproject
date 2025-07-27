@@ -12,7 +12,7 @@ get_db = database.get_db
 
 @router.get("/discover", response_model=schemas.DiscoveryResponse)
 async def discovery(
-    network: str = "192.168.99.0", subnet: str = "26", db: Session = Depends(get_db)
+    network: str = "192.168.254.1", subnet: str = "30", db: Session = Depends(get_db)
 ):
     network_addr = ipaddress.IPv4Network(f"{network}/{subnet}", strict=False)
     host_addresses = [str(ip) for ip in network_addr.hosts()]
@@ -55,3 +55,8 @@ async def get_all_devices_endpoint(db: Session = Depends(get_db)):
 async def get_devices_endpoint(ip: str, db: Session = Depends(get_db)):
     """HTTP endpoint for getting single devices"""
     return device_service.get_device_by_ip(ip, db)
+
+@router.delete("/{ip}")
+async def delete_devices_endpoint(ip: str, db: Session = Depends(get_db)):
+    """HTTP endpoint for delete single devices"""
+    return device_service.delete_device(ip, db)

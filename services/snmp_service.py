@@ -1,6 +1,5 @@
 import asyncio
 from typing import Optional
-from venv import create
 from sqlalchemy.orm import Session
 from pysnmp.hlapi.v3arch.asyncio import (
     get_cmd,
@@ -109,10 +108,11 @@ async def snmp_bulk_walk(host: str, oids: list[str]):
 
 async def device_discovery(
     host: str,
-    db: Session,  # Removed Depends - db is now a regular parameter
+    db: Session, 
 ) -> Optional[schemas.DeviceInfo]:
     oids = list(schemas.DISCOVERY_OIDS.values())
     result = await snmp_get(host, oids)
+    print(result)
 
     if result and result.get("success"):
         data = result["data"]
@@ -127,7 +127,7 @@ async def device_discovery(
         )
         
         try:
-            await device_service.create_device(device_info, db) 
+            await device_service.update_device(device_info, db) 
             return device_info
         except Exception as e:
             print(f"Error saving device {host}: {e}")

@@ -13,15 +13,17 @@ get_db = database.get_db
 
 @router.get("/")
 async def poll_all_device(db: Session = Depends(get_db)):
-    host_addresses = [ip[0] for ip in db.query(models.Device.ip_address).all()]
+    host_info = db.query(models.Device.ip_address, models.Device.vendor).all()
+
     semaphore = asyncio.Semaphore(20)
 
-    async def limited_polling(ip_address: str):
+    async def limited_polling(ip_address: str, vendor: str):
         async with semaphore:
-            await poll_device(ip_address)
+            await poll_device(ip_address, vendor)
             await poll_interfaces(ip_address)
 
-    tasks = [limited_polling(ip) for ip in host_addresses]
+    # Create tasks
+    tasks = [limited_polling(ip, vendor) for ip, vendor in host_info]
     await asyncio.gather(*tasks)
 
     try:
@@ -36,9 +38,9 @@ async def poll_all_device(db: Session = Depends(get_db)):
 
 
 @router.get("/{host}")
-async def poll_device(host: str):
+async def poll_device(host: str, vendor: str):
     try:
-        oids = list(schemas.DEVICE_OIDS.values())
+        oids = list(schemas.DEVICE_OIDS.values()) + list(schemas.VENDOR_OIDS.get(vendor, {}).values())
         result = await snmp_service.snmp_get(host, oids)
 
         if result and result.get("success"):

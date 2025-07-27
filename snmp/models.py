@@ -8,4 +8,6 @@ class Device(Base):
     id = Column(Integer, primary_key=True, index=True)
     ip_address = Column(String, unique=True)
     hostname = Column(String, unique=True)
-    number_of_ports = Column(Integer)
+    mac_address = Column(String, index=True)
+    vendor = Column(String)
+    priority = Column(Integer)
