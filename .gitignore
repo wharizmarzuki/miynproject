@@ -2,3 +2,4 @@ venv/
 registered.db
 registered.db
 registered.db-shm
+prometheus/prometheus_data
