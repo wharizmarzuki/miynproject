@@ -109,8 +109,6 @@ async def poll_interfaces(host: str):
             if index not in interfaces:
                 interfaces[index] = {}
             interfaces[index][item["base_oid"]] = item["value"]
-        
-        print(interfaces)
             
         processed_interfaces = 0
         for index, data in interfaces.items():
@@ -158,13 +156,12 @@ async def poll_interfaces(host: str):
                 direction="out"
             ).set(int(data.get("SNMPv2-SMI::mib-2.2.2.1.20", "0")))
             
-            # Discards (use a separate metric)
             interface_discards.labels(
                 host=host,
                 interface_index=index,
                 interface_name=if_name,
                 direction="in"
-            ).set(int(data.get("SNMPv2-SMI::mib-2.2.2.1.13", "0")))  # Fixed: was "inErrors"
+            ).set(int(data.get("SNMPv2-SMI::mib-2.2.2.1.13", "0"))) 
             
             interface_discards.labels(
                 host=host,
