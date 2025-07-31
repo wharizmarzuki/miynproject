@@ -10,50 +10,51 @@ device_up = Gauge(
     registry=registry
 )
 
-# Device-level metrics (matching your DeviceMetrics schema)
+# Device-level metrics
 device_info = Gauge(
     'device_info',
     'Device information (static info in labels, value always 1)',
-    ['host', 'device_name', 'model_name', 'services'],
+    ['host', 'device_name', 'model_name', 'vendor'],  # Removed services, added vendor
     registry=registry
 )
 
 device_uptime_seconds = Gauge(
     'device_uptime_seconds',
     'System uptime in seconds',
-    ['host', 'device_name'],
+    ['host'],  # Removed device_name (redundant)
     registry=registry
 )
 
 device_cpu_utilization = Gauge(
     'device_cpu_utilization_percent',
     'CPU utilization percentage',
-    ['host', 'device_name'],
+    ['host'],  # Removed device_name
     registry=registry
 )
 
 device_memory_utilization = Gauge(
     'device_memory_utilization_percent', 
     'Memory utilization percentage',
-    ['host', 'device_name'],
+    ['host'],  # Removed device_name
     registry=registry
 )
 
-# Interface-level metrics (linked to device by host)
+# Interface-level metrics
 interface_admin_status = Gauge(
     'interface_admin_status',
-    'Interface administrative status',
+    'Interface administrative status (1 = up, 0 = down)',
     ['host', 'interface_index', 'interface_name'],
     registry=registry
 )
 
 interface_oper_status = Gauge(
     'interface_operational_status',
-    'Interface operational status',
+    'Interface operational status (1 = up, 0 = down)',
     ['host', 'interface_index', 'interface_name'],
     registry=registry
 )
 
+# Changed from Gauge to Counter
 interface_octets = Gauge(
     'interface_octets_total',
     'Total octets transmitted/received', 
@@ -61,6 +62,7 @@ interface_octets = Gauge(
     registry=registry
 )
 
+# Changed from Gauge to Counter
 interface_errors = Gauge(
     'interface_errors_total',
     'Total interface errors',
@@ -68,6 +70,7 @@ interface_errors = Gauge(
     registry=registry
 )
 
+# Changed from Gauge to Counter
 interface_discards = Gauge(
     'interface_discards_total',
     'Total interface discards',

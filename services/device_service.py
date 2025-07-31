@@ -41,7 +41,7 @@ async def update_device(device_info: schemas.DeviceInfo, db: Session):
     if device:
         device.ip_address = device_info.ip_address # type: ignore
         device.hostname = device_info.hostname # type: ignore
-        device.vendor = device_info.vendor # type: ignore
+        device.vendor = extract_vendor(device_info.vendor) # type: ignore
         db.commit()
         db.refresh(device)
         return device

@@ -63,25 +63,21 @@ async def poll_device(host: str, vendor: str):
                 host=host,
                 device_name=device_name,
                 model_name=oid_values.get("model_name", "N/A"),
-                services=oid_values.get("services", "N/A")
             ).set(1)
             
             # Convert uptime (hundredths of seconds to seconds)
             uptime_seconds = float(oid_values.get("uptime", 0)) / 100.0
             device_uptime_seconds.labels(
                 host=host, 
-                device_name=device_name
             ).set(uptime_seconds)
             
             device_cpu_utilization.labels(
                 host=host, 
-                device_name=device_name
-            ).set(float(oid_values.get("cpu_utilization", 0)))
-            
+            ).set(round(float(oid_values.get("cpu_utilization", 0)), 2))
+
             device_memory_utilization.labels(
                 host=host, 
-                device_name=device_name
-            ).set(float(oid_values.get("memory_utilization", 0)))
+            ).set(round(float(oid_values.get("memory_utilization", 0)), 2))
             
             return {"status": "success", "host": host, "device_name": device_name}
             

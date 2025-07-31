@@ -19,7 +19,7 @@ async def run_discovery():
         
         # Import and call the discovery function directly
         from routers.devices import discovery
-        result = await discovery(network="192.168.254.1", subnet="30", db=db)
+        result = await discovery(network="192.168.254.1", subnet="27", db=db)
         
         print(f"Discovery completed: {result.devices_found} devices found out of {result.total_scanned} scanned")
         

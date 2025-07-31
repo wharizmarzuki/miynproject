@@ -12,7 +12,7 @@ get_db = database.get_db
 
 @router.get("/discover", response_model=schemas.DiscoveryResponse)
 async def discovery(
-    network: str = "192.168.254.1", subnet: str = "30", db: Session = Depends(get_db)
+    network: str = "192.168.254.1", subnet: str = "27", db: Session = Depends(get_db)
 ):
     network_addr = ipaddress.IPv4Network(f"{network}/{subnet}", strict=False)
     host_addresses = [str(ip) for ip in network_addr.hosts()]
