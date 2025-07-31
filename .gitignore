@@ -1,5 +1,5 @@
 venv/
 registered.db
-registered.db
+registered.db-wal
 registered.db-shm
-prometheus/prometheus_data
+prometheus/prometheus_data/
