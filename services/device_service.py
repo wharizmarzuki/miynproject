@@ -2,7 +2,8 @@ from typing import Optional
 from fastapi import Depends
 from sqlalchemy import exists
 from sqlalchemy.orm import Session
-from snmp import models, schemas, database
+from app.core import database, models
+from snmp import schemas
 from abc import ABC, abstractmethod
 
 

@@ -12,10 +12,13 @@ from pysnmp.hlapi.v3arch.asyncio import (
     ObjectType,
     ObjectIdentity,
 )
-from config import SNMP_COMMUNITY
-from snmp import schemas, database
+from app.core import database
+from app.config.settings import settings
+from snmp import schemas
 from abc import ABC, abstractmethod
 from services.device_service import DeviceRepository, SQLAlchemyDeviceRepository, update_device
+
+COMMUNITY = settings.snmp_community
 
 def get_repository(db: Session = Depends(database.get_db)) -> DeviceRepository:
     return SQLAlchemyDeviceRepository(db)
@@ -32,11 +35,11 @@ class SNMPClient(ABC):
 
 
 def get_snmp_client() -> SNMPClient:
-    return PySNMPClient(community=SNMP_COMMUNITY)
+    return PySNMPClient(community=COMMUNITY)
 
 
 class PySNMPClient(SNMPClient):
-    def __init__(self, community: str = SNMP_COMMUNITY):
+    def __init__(self, community: str = COMMUNITY):
         self.community = community
     
     async def get(self, host: str, oids: list[str]) -> Optional[dict]:

@@ -6,7 +6,9 @@ from sqlalchemy import exists
 from sqlalchemy.orm import Session
 import httpx
 from typing import Dict, Any, List
-from snmp import database, models
+from app.core import database
+from app.core import models
+from app.config.settings import settings
 
 get_db = database.get_db
 
@@ -15,7 +17,7 @@ router = APIRouter(
     tags=["Alert Rules"]
 )
 
-PROMETHEUS_URL = "http://localhost:9090"
+PROMETHEUS_URL = settings.prometheus_url
 PROMETHEUS_RULES_ENDPOINT = f"{PROMETHEUS_URL}/api/v1/rules"
 
 async def fetch_prometheus_rules() -> Dict[str, Any]:

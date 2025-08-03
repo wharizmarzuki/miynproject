@@ -2,10 +2,12 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.orm import Session
-from snmp import models
-from snmp.database import engine, get_db
+from app.core import models
+from app.core.database import engine, get_db
 from routers import devices, device_polling, query, alert
 from services import snmp_service
+from app.config.settings import settings
+from services.snmp_service import SNMPClient, get_snmp_client
 
 models.Base.metadata.create_all(engine)
 
@@ -39,9 +41,10 @@ async def run_polling():
             db_gen = get_db()
             db: Session = next(db_gen)
             
-            # Import and call the polling function directly
+            client = get_snmp_client()
+
             from routers.device_polling import poll_all_device
-            await poll_all_device(db=db)
+            await poll_all_device(db, client)
             
             print("Polling completed successfully")
             
@@ -52,7 +55,7 @@ async def run_polling():
             print(f"Error during scheduled polling: {str(e)}")
         
         # Wait 1 minute before next poll
-        await asyncio.sleep(60)
+        await asyncio.sleep(settings.polling_interval)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

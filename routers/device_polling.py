@@ -2,32 +2,33 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from prometheus_client import generate_latest, push_to_gateway
-from snmp import database, schemas, models
+from app.core import database, models
+from snmp import schemas
 from services.snmp_service import get_snmp_data, bulk_snmp_walk, SNMPClient, get_snmp_client
 from snmp.prometheus_model import device_up, device_info, device_cpu_utilization, device_uptime_seconds, device_memory_utilization, registry, interface_admin_status, interface_octets, interface_errors, interface_discards, interface_oper_status
-from config import PUSHGATEWAY_URL
+from app.config.settings import settings
 
 router = APIRouter(prefix="/polling", tags=["Polling"])
 get_db = database.get_db
 
 
 @router.get("/")
-async def poll_all_device(db: Session = Depends(get_db)):
+async def poll_all_device(db: Session = Depends(get_db), client: SNMPClient = Depends(get_snmp_client)):
     host_info = db.query(models.Device.ip_address, models.Device.vendor).all()
 
     semaphore = asyncio.Semaphore(20)
 
     async def limited_polling(ip_address: str, vendor: str):
         async with semaphore:
-            await poll_device(ip_address, vendor)
-            await poll_interfaces(ip_address)
+            await poll_device(ip_address, vendor, client)
+            await poll_interfaces(ip_address, client)
 
     tasks = [limited_polling(ip, vendor) for ip, vendor in host_info]
     await asyncio.gather(*tasks)
 
     try:
         push_to_gateway(
-            gateway=PUSHGATEWAY_URL,
+            gateway=settings.pushgateway_url,
             job='snmp_polling',
             registry=registry,
             grouping_key={'instance': 'snmp_poller'}
