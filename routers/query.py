@@ -1,69 +1,95 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 import httpx
 import asyncio
 import math
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from snmp import schemas
 
+class IMetricsService(ABC):
+    @abstractmethod
+    async def query(self, query: str) -> Dict[str, Any]:
+        pass
+    
+    @abstractmethod
+    async def query_range(
+        self, 
+        query: str, 
+        start_time: str, 
+        end_time: str, 
+        step: str
+    ) -> Dict[str, Any]:
+        pass
+
+class IConfigProvider(ABC):
+    @abstractmethod
+    def get_prometheus_url(self) -> str:
+        pass
+
+class EnvironmentConfigProvider(IConfigProvider):
+    def get_prometheus_url(self) -> str:
+        return "http://localhost:9090"
+
+class PrometheusService(IMetricsService):
+    def __init__(self, config: IConfigProvider):
+        self.config = config
+        base_url = config.get_prometheus_url()
+        self.query_endpoint = f"{base_url}/api/v1/query"
+        self.query_range_endpoint = f"{base_url}/api/v1/query_range"
+    
+    async def query(self, query: str) -> Dict[str, Any]:
+        try:
+            async with httpx.AsyncClient() as client:
+                params = {"query": query}
+                response = await client.get(self.query_endpoint, params=params, timeout=30.0)
+                response.raise_for_status()
+                return response.json()
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"HTTP error: {str(e)}")
+    
+    async def query_range(self, query: str, start_time: str, end_time: str, step: str) -> Dict[str, Any]:
+        try:
+            async with httpx.AsyncClient() as client:
+                params = {
+                    "query": query,
+                    "start": start_time,
+                    "end": end_time,
+                    "step": step
+                }
+                response = await client.get(self.query_range_endpoint, params=params, timeout=30.0)
+                response.raise_for_status()
+                return response.json()
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"HTTP error: {str(e)}")
+
+def get_config() -> IConfigProvider:
+    return EnvironmentConfigProvider()
+
+def get_metrics_service(config: IConfigProvider = Depends(get_config)) -> IMetricsService:
+    return PrometheusService(config)
+
 router = APIRouter(
     prefix="/query",
-    tags= ["Query"]
+    tags=["Query"]
 )
-
-PROMETHEUS_URL = "http://localhost:9090" 
-PROMETHEUS_QUERY_ENDPOINT = f"{PROMETHEUS_URL}/api/v1/query"
-PROMETHEUS_QUERY_RANGE_ENDPOINT = f"{PROMETHEUS_URL}/api/v1/query_range"
-
-
-async def query_prometheus(query: str) -> Dict[str, Any]:
-    try:
-        async with httpx.AsyncClient() as client:
-            params = {"query": query}
-            response = await client.get(PROMETHEUS_QUERY_ENDPOINT, params=params, timeout=30.0)
-            response.raise_for_status()
-            return response.json()
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500)
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code)
-    
-async def query_prometheus_range(query: str, start_time: str, end_time: str, step: str = "60s") -> Dict[str, Any]:
-
-    try:
-        async with httpx.AsyncClient() as client:
-            params = {
-                "query": query,
-                "start": start_time,
-                "end": end_time,
-                "step": step
-            }
-            response = await client.get(PROMETHEUS_QUERY_RANGE_ENDPOINT, params=params, timeout=30.0)
-            response.raise_for_status()
-            return response.json()
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=f"HTTP error: {str(e)}")
-    
 
 @router.get("/devices/cpu-utilization")
 async def get_all_devices_cpu_utilization(
+    metrics_service: IMetricsService = Depends(get_metrics_service),
     duration: str = "5m",
-    start_time: str = None, # type: ignore
-    end_time: str = None, # type: ignore
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
     step: str = "15s"
 ):
     try:
         # Query specifically for CPU utilization metric
         query = f"device_cpu_utilization_percent[{duration}]"
-        
-        if start_time and end_time:
-            result = await query_prometheus(query)
-        else:
-            result = await query_prometheus(query)
-        
-        print(result)
+        result = await metrics_service.query(query) 
         
         if result["status"] != "success":
             raise HTTPException(status_code=500, detail="Prometheus query failed")
@@ -79,12 +105,13 @@ async def get_all_devices_cpu_utilization(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @router.get("/devices/status")
-async def get_all_device_status():
+async def get_all_device_status(
+    metrics_service: IMetricsService = Depends(get_metrics_service)
+):
     try:
-        query = "device_up"
-        result = await query_prometheus(query)
+        result = await metrics_service.query("device_up")
        
         if not result:
             raise HTTPException(status_code=500, detail="Empty response from Prometheus")
@@ -113,8 +140,10 @@ async def get_all_device_status():
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 @router.post("/devices/status/summary")
-async def summary_device_status():
-    response = await get_all_device_status()
+async def summary_device_status(
+    metrics_service: IMetricsService = Depends(get_metrics_service)
+):
+    response = await get_all_device_status(metrics_service)
     print(response)
    
     # Navigate to the actual devices array in the nested structure
@@ -145,24 +174,31 @@ async def summary_device_status():
         }
     }
 
-
 @router.get("/interfaces/{host}", response_model=schemas.PaginatedInterfaces)
 async def get_interfaces(
     host: str,
+    metrics_service: IMetricsService = Depends(get_metrics_service),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100)
 ):
     """Async endpoint for interface metrics"""
-    metrics = await query_prometheus(host)
+    # Use the injected metrics service instead of direct function call
+    query = f'{{instance="{host}"}}'
+    metrics_result = await metrics_service.query(query)
+    
+    if metrics_result.get("status") != "success":
+        raise HTTPException(status_code=500, detail="Failed to query metrics")
+    
+    metrics = metrics_result.get("data", {}).get("result", [])
     
     interfaces = {}
     for metric in metrics: 
-        labels = metric['metric']
+        labels = metric.get('metric', {})
         if 'interface_index' not in labels or 'interface_name' not in labels:
             continue
             
-        idx = labels['interface_index']
-        name = labels['interface_name']
+        idx = labels.get('interface_index')
+        name = labels.get('interface_name')
         
         if idx not in interfaces:
             interfaces[idx] = {
@@ -179,23 +215,29 @@ async def get_interfaces(
             }
         
         value = float(metric['value'][1])
-        metric_name = labels['__name__']
+        metric_name = labels.get('__name__', '')
         
         if metric_name == 'interface_admin_status':
             interfaces[idx]['admin_status'] = int(value)
         elif metric_name == 'interface_operational_status':
             interfaces[idx]['oper_status'] = int(value)
         elif 'direction' in labels:
-            direction = labels['direction']
+            direction = labels.get('direction')
             if metric_name == 'interface_octets_total':
-                if direction == 'in': interfaces[idx]['octets_in'] = value
-                else: interfaces[idx]['octets_out'] = value
+                if direction == 'in': 
+                    interfaces[idx]['octets_in'] = value
+                else: 
+                    interfaces[idx]['octets_out'] = value
             elif metric_name == 'interface_errors_total':
-                if direction == 'in': interfaces[idx]['errors_in'] = value
-                else: interfaces[idx]['errors_out'] = value
+                if direction == 'in': 
+                    interfaces[idx]['errors_in'] = value
+                else: 
+                    interfaces[idx]['errors_out'] = value
             elif metric_name == 'interface_discards_total':
-                if direction == 'in': interfaces[idx]['discards_in'] = value
-                else: interfaces[idx]['discards_out'] = value
+                if direction == 'in': 
+                    interfaces[idx]['discards_in'] = value
+                else: 
+                    interfaces[idx]['discards_out'] = value
     
     interface_list = list(interfaces.values())
     total = len(interface_list)
@@ -211,14 +253,14 @@ async def get_interfaces(
         total=total
     )
 
-
 @router.post("/interface/network")
 async def get_network_throughput_separated(
-    start_time: str = None, # type: ignore
-    end_time: str = None, # type: ignore
+    metrics_service: IMetricsService = Depends(get_metrics_service),
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
     step: str = "60s",
     unit: str = "mbps",
-    max_points: int = 1000  # Added to prevent overload
+    max_points: int = 1000
 ):
     if not start_time or not end_time:
         end_time = datetime.now().isoformat() + "Z"
@@ -245,11 +287,9 @@ async def get_network_throughput_separated(
         raise HTTPException(status_code=400, detail=f"Invalid unit. Choose from: {list(unit_conversions.keys())}")
     conversion_factor = unit_conversions[unit]
 
-    # Dynamic rate window calculation (critical for real-time accuracy)
     step_seconds = parse_duration(step)
-    window = f"{max(step_seconds * 2, 300)}s"  # Minimum 5m window
+    window = f"{max(step_seconds * 2, 300)}s" 
 
-    # Optimized queries with dynamic window
     queries = {
         "inbound": f'sum(rate(interface_octets_total{{direction="in"}}[{window}]))',
         "outbound": f'sum(rate(interface_octets_total{{direction="out"}}[{window}]))',
@@ -268,7 +308,7 @@ async def get_network_throughput_separated(
     results = {}
     try:
         tasks = {
-            direction: query_prometheus_range(query, start_time, end_time, step)
+            direction: metrics_service.query_range(query, start_time, end_time, step)
             for direction, query in queries.items()
         }
 
@@ -277,9 +317,8 @@ async def get_network_throughput_separated(
         for direction, task_result in zip(tasks.keys(), query_results):
             if isinstance(task_result, Exception):
                 results[direction] = {"error": str(task_result)}
-            elif task_result.get("status") == "success": # type: ignore
-
-                all_series = task_result.get("data", {}).get("result", []) # type: ignore
+            elif isinstance(task_result, dict) and task_result.get("status") == "success":
+                all_series = task_result.get("data", {}).get("result", [])
                 if not all_series:
                     results[direction] = []
                     continue
@@ -299,7 +338,6 @@ async def get_network_throughput_separated(
                         else:
                             aggregated_data[timestamp] = value
                 
-                # Format for Chart.js
                 formatted_data = [
                     {
                         "x": datetime.fromtimestamp(float(ts)).isoformat() + "Z",
@@ -326,15 +364,13 @@ async def get_network_throughput_separated(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing throughput data: {str(e)}")
 
-
 def parse_duration(duration: str) -> int:
     units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     unit = duration[-1]
     value = int(duration[:-1])
     return value * units.get(unit, 1)
 
-
-def format_metric(prom_data):
+def format_metric(prom_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     result = []
     for entry in prom_data['data']['result']:
         metric_meta = entry['metric']
@@ -342,7 +378,7 @@ def format_metric(prom_data):
         device_name = metric_meta.get('device_name', 'unknown')
 
         timeseries = [
-            { "timestamp": ts, "value": float(value) }
+            {"timestamp": ts, "value": float(value)}
             for ts, value in entry['values']
         ]
 
@@ -351,4 +387,4 @@ def format_metric(prom_data):
             "device_name": device_name,
             "data": timeseries
         })
-    return result 
+    return result
