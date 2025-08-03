@@ -27,6 +27,25 @@ class DiscoveryResponse(BaseModel):
     devices_found: int = Field(..., description="Number of responsive devices")
     devices: List[DeviceInfo] = Field(..., description="List of discovered devices")
 
+class InterfaceMetric(BaseModel):
+    index: int
+    name: str
+    admin_status: int
+    oper_status: int
+    octets_in: float
+    octets_out: float
+    errors_in: float
+    errors_out: float
+    discards_in: float
+    discards_out: float
+
+class PaginatedInterfaces(BaseModel):
+    host: str
+    interfaces: List[InterfaceMetric]
+    page: int
+    per_page: int
+    total: int
+
 
 # OID Mapping for easy maintenance
 DISCOVERY_OIDS = {

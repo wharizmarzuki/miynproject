@@ -1,19 +1,20 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 import httpx
 import asyncio
-from typing import Dict, Any, List
-from urllib.parse import quote
-from collections import defaultdict
-from datetime import datetime
+import math
+from typing import Dict, Any
+from datetime import datetime, timedelta
+from snmp import schemas
 
 router = APIRouter(
     prefix="/query",
     tags= ["Query"]
 )
 
-# Prometheus configuration
-PROMETHEUS_URL = "http://localhost:9090"  # Adjust to your Prometheus server
+PROMETHEUS_URL = "http://localhost:9090" 
 PROMETHEUS_QUERY_ENDPOINT = f"{PROMETHEUS_URL}/api/v1/query"
+PROMETHEUS_QUERY_RANGE_ENDPOINT = f"{PROMETHEUS_URL}/api/v1/query_range"
+
 
 async def query_prometheus(query: str) -> Dict[str, Any]:
     try:
@@ -27,25 +28,38 @@ async def query_prometheus(query: str) -> Dict[str, Any]:
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code)
     
+async def query_prometheus_range(query: str, start_time: str, end_time: str, step: str = "60s") -> Dict[str, Any]:
 
-@router.get("/devices")
-async def get_all_devices(
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {
+                "query": query,
+                "start": start_time,
+                "end": end_time,
+                "step": step
+            }
+            response = await client.get(PROMETHEUS_QUERY_RANGE_ENDPOINT, params=params, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"HTTP error: {str(e)}")
+    
+
+@router.get("/devices/cpu-utilization")
+async def get_all_devices_cpu_utilization(
     duration: str = "5m",
     start_time: str = None, # type: ignore
     end_time: str = None, # type: ignore
     step: str = "15s"
 ):
     try:
-        query = f"{{device_name=~'.+'}}[{duration}]"
+        # Query specifically for CPU utilization metric
+        query = f"device_cpu_utilization_percent[{duration}]"
         
         if start_time and end_time:
-            # Range query with step
-            result = await query_prometheus(
-                query,
-                start=start_time, # type: ignore
-                end=end_time, # type: ignore
-                step=step # type: ignore
-            )
+            result = await query_prometheus(query)
         else:
             result = await query_prometheus(query)
         
@@ -54,56 +68,271 @@ async def get_all_devices(
         if result["status"] != "success":
             raise HTTPException(status_code=500, detail="Prometheus query failed")
         
-        compiled_devices = format_metric(result)
+        cpu_data = format_metric(result)
         
         return {
             "status": "success",
-            "total_devices": len(compiled_devices),
-            "devices": compiled_devices
+            "metric_type": "cpu_utilization",
+            "total_devices": len(cpu_data),
+            "data": cpu_data
         }
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+@router.get("/devices/status")
+async def get_all_device_status():
+    try:
+        query = "device_up"
+        result = await query_prometheus(query)
+       
+        if not result:
+            raise HTTPException(status_code=500, detail="Empty response from Prometheus")
+           
+        if result.get("status") != "success":
+            error_detail = result.get("error", "Unknown Prometheus error")
+            raise HTTPException(status_code=500, detail=f"Prometheus query failed: {error_detail}")
+       
+        # Extract the actual result array from nested structure
+        prometheus_data = result.get("data", {})
+        devices_result = prometheus_data.get("result", [])
+        
+        return {
+            "status": "success",
+            "metric_type": "device_up",
+            "total_devices": len(devices_result),
+            "data": result  # Keep original structure for compatibility
+        }
+   
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Unexpected error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+@router.post("/devices/status/summary")
+async def summary_device_status():
+    response = await get_all_device_status()
+    print(response)
+   
+    # Navigate to the actual devices array in the nested structure
+    prometheus_data = response["data"]["data"]
+    devices = prometheus_data["result"]
+   
+    # Extract device status - value is in format [timestamp, "status_string"]
+    up_count = 0
+    down_count = 0
     
-@router.get("/devices/{hostname}")
-async def get_devices(
-    hostname: str,
-    duration: str = "5m",
+    for device in devices:
+        # Get the status value (second element in the value array)
+        status_value = device["value"][1]
+        if status_value == "1":
+            up_count += 1
+        elif status_value == "0":
+            down_count += 1
+   
+    return {
+        "type": "device_status_summary",
+        "payload": {
+            "labels": ["Up", "Down"],
+            "datasets": [{
+                "label": "Device Status",
+                "data": [up_count, down_count],
+                "hoverOffset": 4
+            }]
+        }
+    }
+
+
+@router.get("/interfaces/{host}", response_model=schemas.PaginatedInterfaces)
+async def get_interfaces(
+    host: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100)
+):
+    """Async endpoint for interface metrics"""
+    metrics = await query_prometheus(host)
+    
+    interfaces = {}
+    for metric in metrics: 
+        labels = metric['metric']
+        if 'interface_index' not in labels or 'interface_name' not in labels:
+            continue
+            
+        idx = labels['interface_index']
+        name = labels['interface_name']
+        
+        if idx not in interfaces:
+            interfaces[idx] = {
+                'index': int(idx),
+                'name': name,
+                'admin_status': 0,
+                'oper_status': 0,
+                'octets_in': 0,
+                'octets_out': 0,
+                'errors_in': 0,
+                'errors_out': 0,
+                'discards_in': 0,
+                'discards_out': 0
+            }
+        
+        value = float(metric['value'][1])
+        metric_name = labels['__name__']
+        
+        if metric_name == 'interface_admin_status':
+            interfaces[idx]['admin_status'] = int(value)
+        elif metric_name == 'interface_operational_status':
+            interfaces[idx]['oper_status'] = int(value)
+        elif 'direction' in labels:
+            direction = labels['direction']
+            if metric_name == 'interface_octets_total':
+                if direction == 'in': interfaces[idx]['octets_in'] = value
+                else: interfaces[idx]['octets_out'] = value
+            elif metric_name == 'interface_errors_total':
+                if direction == 'in': interfaces[idx]['errors_in'] = value
+                else: interfaces[idx]['errors_out'] = value
+            elif metric_name == 'interface_discards_total':
+                if direction == 'in': interfaces[idx]['discards_in'] = value
+                else: interfaces[idx]['discards_out'] = value
+    
+    interface_list = list(interfaces.values())
+    total = len(interface_list)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated = interface_list[start:end]
+    
+    return schemas.PaginatedInterfaces(
+        host=host,
+        interfaces=[schemas.InterfaceMetric(**data) for data in paginated],
+        page=page,
+        per_page=per_page,
+        total=total
+    )
+
+
+@router.post("/interface/network")
+async def get_network_throughput_separated(
     start_time: str = None, # type: ignore
     end_time: str = None, # type: ignore
-    step: str = "15s"
+    step: str = "60s",
+    unit: str = "mbps",
+    max_points: int = 1000  # Added to prevent overload
 ):
+    if not start_time or not end_time:
+        end_time = datetime.now().isoformat() + "Z"
+        start_time = (datetime.now() - timedelta(hours=1)).isoformat() + "Z"
+
+    # Validate time format
     try:
-        query = f"{{device_name='{hostname}'}}[{duration}]"
-        
-        if start_time and end_time:
-            # Range query with step
-            result = await query_prometheus(
-                query,
-                start=start_time, # type: ignore
-                end=end_time, # type: ignore
-                step=step # type: ignore
-            )
-        else:
-            result = await query_prometheus(query)
-        
-        print(result)
-        
-        if result["status"] != "success":
-            raise HTTPException(status_code=500, detail="Prometheus query failed")
-        
-        compiled_devices = format_metric(result)
-        
+        start_dt = datetime.fromisoformat(start_time.rstrip("Z"))
+        end_dt = datetime.fromisoformat(end_time.rstrip("Z"))
+        if end_dt <= start_dt:
+            raise ValueError("end_time must be after start_time")
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid time format: {str(e)}")
+
+    # Unit conversion setup
+    unit_conversions = {
+        "bps": 8,
+        "kbps": 8 / 1_000,
+        "mbps": 8 / 1_000_000,
+        "gbps": 8 / 1_000_000_000
+    }
+    unit = unit.lower()
+    if unit not in unit_conversions:
+        raise HTTPException(status_code=400, detail=f"Invalid unit. Choose from: {list(unit_conversions.keys())}")
+    conversion_factor = unit_conversions[unit]
+
+    # Dynamic rate window calculation (critical for real-time accuracy)
+    step_seconds = parse_duration(step)
+    window = f"{max(step_seconds * 2, 300)}s"  # Minimum 5m window
+
+    # Optimized queries with dynamic window
+    queries = {
+        "inbound": f'sum(rate(interface_octets_total{{direction="in"}}[{window}]))',
+        "outbound": f'sum(rate(interface_octets_total{{direction="out"}}[{window}]))',
+        "total": f'sum(rate(interface_octets_total[{window}]))'
+    }
+
+    # Auto-adjust step if too many data points requested
+    time_range_seconds = (end_dt - start_dt).total_seconds()
+    requested_points = time_range_seconds / step_seconds
+    
+    if requested_points > max_points:
+        new_step = math.ceil(time_range_seconds / max_points)
+        step = f"{new_step}s"
+        step_seconds = new_step
+
+    results = {}
+    try:
+        tasks = {
+            direction: query_prometheus_range(query, start_time, end_time, step)
+            for direction, query in queries.items()
+        }
+
+        query_results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+
+        for direction, task_result in zip(tasks.keys(), query_results):
+            if isinstance(task_result, Exception):
+                results[direction] = {"error": str(task_result)}
+            elif task_result.get("status") == "success": # type: ignore
+
+                all_series = task_result.get("data", {}).get("result", []) # type: ignore
+                if not all_series:
+                    results[direction] = []
+                    continue
+                
+                # Aggregate all values across series
+                aggregated_data = {}
+                for series in all_series:
+                    for point in series.get("values", []):
+                        timestamp = point[0]
+                        try:
+                            value = float(point[1]) * conversion_factor
+                        except (ValueError, TypeError):
+                            value = 0.0
+                            
+                        if timestamp in aggregated_data:
+                            aggregated_data[timestamp] += value
+                        else:
+                            aggregated_data[timestamp] = value
+                
+                # Format for Chart.js
+                formatted_data = [
+                    {
+                        "x": datetime.fromtimestamp(float(ts)).isoformat() + "Z",
+                        "y": round(val, 4)
+                    }
+                    for ts, val in sorted(aggregated_data.items())
+                ]
+                results[direction] = formatted_data
+            else:
+                results[direction] = []
+
         return {
             "status": "success",
-            "total_devices": len(compiled_devices),
-            "devices": compiled_devices
+            "metric": "network_throughput_by_direction",
+            "unit": unit.upper(),
+            "time_range": {
+                "start": start_time,
+                "end": end_time,
+                "step": step  
+            },
+            "data": results
         }
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        raise HTTPException(status_code=500, detail=f"Error processing throughput data: {str(e)}")
+
+
+def parse_duration(duration: str) -> int:
+    units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    unit = duration[-1]
+    value = int(duration[:-1])
+    return value * units.get(unit, 1)
+
 
 def format_metric(prom_data):
     result = []
@@ -122,4 +351,4 @@ def format_metric(prom_data):
             "device_name": device_name,
             "data": timeseries
         })
-    return result    
+    return result 

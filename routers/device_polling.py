@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from prometheus_client import generate_latest, push_to_gateway
 from snmp import database, schemas, models
-from services import snmp_service
+from services.snmp_service import get_snmp_data, bulk_snmp_walk, SNMPClient, get_snmp_client
 from snmp.prometheus_model import device_up, device_info, device_cpu_utilization, device_uptime_seconds, device_memory_utilization, registry, interface_admin_status, interface_octets, interface_errors, interface_discards, interface_oper_status
 from config import PUSHGATEWAY_URL
 
@@ -22,7 +22,6 @@ async def poll_all_device(db: Session = Depends(get_db)):
             await poll_device(ip_address, vendor)
             await poll_interfaces(ip_address)
 
-    # Create tasks
     tasks = [limited_polling(ip, vendor) for ip, vendor in host_info]
     await asyncio.gather(*tasks)
 
@@ -38,62 +37,81 @@ async def poll_all_device(db: Session = Depends(get_db)):
 
 
 @router.get("/{host}")
-async def poll_device(host: str, vendor: str):
+async def poll_device(host: str, vendor: str, client: SNMPClient = Depends(get_snmp_client)):
     try:
         oids = list(schemas.DEVICE_OIDS.values()) + list(schemas.VENDOR_OIDS.get(vendor, {}).values())
-        result = await snmp_service.snmp_get(host, oids)
-
+        result = await get_snmp_data(host, oids, client)
+        
         if result and result.get("success"):
             data = result["data"]
             oid_values = {}
-            polling_oids_items = list(schemas.DEVICE_OIDS.items())
-
-            for i, (key, _) in enumerate(polling_oids_items[:5]):
-                oid_values[key] = data[i]["value"] if i < len(data) else None
-
-            total_mem = float(data[5]["value"]) if len(data) > 5 else 1
-            used_mem = float(data[7]["value"]) if len(data) > 7 else 0
-            oid_values["memory_utilization"] = str((used_mem / total_mem) * 100) if total_mem else "0"
-
-            device_name = oid_values.get("device_name", "Unknown")
             
-            # Set metrics
+            device_oids_list = list(schemas.DEVICE_OIDS.items())
+            for i, (key, oid) in enumerate(device_oids_list):
+                if i < len(data):
+                    oid_values[key] = data[i]["value"]
+                else:
+                    oid_values[key] = None
+            
+            vendor_oids = schemas.VENDOR_OIDS.get(vendor, {})
+            vendor_data = {}
+            
+            oid_to_value = {item["oid"]: item["value"] for item in data}
+            
+            for key, oid in vendor_oids.items():
+                vendor_data[key] = oid_to_value.get(oid, "0")
+            
+            oid_values["cpu_utilization"] = vendor_data.get("cpu_utilization", "0")
+            
+            if vendor == "Cisco":
+                pool_1 = float(vendor_data.get("memory_pool_1", 0))
+                pool_2 = float(vendor_data.get("memory_pool_2", 0))
+                used_mem = float(vendor_data.get("memory_pool_13", 0))
+                
+                total_mem = pool_1 + pool_2
+                if total_mem > 0:
+                    oid_values["memory_utilization"] = str((used_mem / total_mem) * 100)
+                else:
+                    oid_values["memory_utilization"] = "0"
+            else:
+                oid_values["memory_utilization"] = "0"
+            
+            device_name = oid_values.get("device_name", "Unknown")
+           
             device_up.labels(host=host).set(1)
             device_info.labels(
                 host=host,
                 device_name=device_name,
                 model_name=oid_values.get("model_name", "N/A"),
+                vendor=vendor
             ).set(1)
-            
-            # Convert uptime (hundredths of seconds to seconds)
+           
             uptime_seconds = float(oid_values.get("uptime", 0)) / 100.0
-            device_uptime_seconds.labels(
-                host=host, 
-            ).set(uptime_seconds)
-            
-            device_cpu_utilization.labels(
-                host=host, 
-            ).set(round(float(oid_values.get("cpu_utilization", 0)), 2))
-
-            device_memory_utilization.labels(
-                host=host, 
-            ).set(round(float(oid_values.get("memory_utilization", 0)), 2))
-            
+            device_uptime_seconds.labels(host=host).set(uptime_seconds)
+           
+            device_cpu_utilization.labels(host=host).set(
+                round(float(oid_values.get("cpu_utilization", 0)), 2)
+            )
+            device_memory_utilization.labels(host=host).set(
+                round(float(oid_values.get("memory_utilization", 0)), 2)
+            )
+           
             return {"status": "success", "host": host, "device_name": device_name}
-            
+           
         else:
             device_up.labels(host=host).set(0)
             return {"status": "failed", "host": host, "reason": "SNMP query failed"}
-        
+       
     except Exception as e:
+        print(f"Exception in poll_device: {str(e)}")  # Add logging
         device_up.labels(host=host).set(0)
         return {"status": "error", "host": host, "error": str(e)}
 
 @router.get("/int/{host}") 
-async def poll_interfaces(host: str):
+async def poll_interfaces(host: str,client: SNMPClient = Depends(get_snmp_client)):
     try:
         oids = list(schemas.INTERFACE_OIDS.values())
-        result = await snmp_service.snmp_bulk_walk(host, oids)
+        result = await bulk_snmp_walk(host, oids, client)
         
         if not result or not result.get("success"):
             return

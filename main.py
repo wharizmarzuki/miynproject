@@ -4,30 +4,30 @@ from fastapi import FastAPI
 from sqlalchemy.orm import Session
 from snmp import models
 from snmp.database import engine, get_db
-from routers import devices, device_polling, query
+from routers import devices, device_polling, query, alert
 from services import snmp_service
 
 models.Base.metadata.create_all(engine)
 
-async def run_discovery():
-    """Run device discovery on startup"""
-    print("Running device discovery on startup...")
-    try:
-        # Get database session
-        db_gen = get_db()
-        db: Session = next(db_gen)
+# async def run_discovery():
+#     """Run device discovery on startup"""
+#     print("Running device discovery on startup...")
+#     try:
+#         # Get database session
+#         db_gen = get_db()
+#         db: Session = next(db_gen)
         
-        # Import and call the discovery function directly
-        from routers.devices import discovery
-        result = await discovery(network="192.168.254.1", subnet="27", db=db)
+#         # Import and call the discovery function directly
+#         from routers.devices import discovery
+#         result = await discovery(network="192.168.254.1", subnet="27", db=db)
         
-        print(f"Discovery completed: {result.devices_found} devices found out of {result.total_scanned} scanned")
+#         print(f"Discovery completed: {result.devices_found} devices found out of {result.total_scanned} scanned")
         
-        # Close database session
-        db.close()
+#         # Close database session
+#         db.close()
         
-    except Exception as e:
-        print(f"Error during startup discovery: {str(e)}")
+#     except Exception as e:
+#         print(f"Error during startup discovery: {str(e)}")
 
 async def run_polling():
     """Run device polling every minute"""
@@ -58,8 +58,8 @@ async def run_polling():
 async def lifespan(app: FastAPI):
     print("Application starting up...")
     
-    # Run discovery on startup
-    await run_discovery()
+    # # Run discovery on startup
+    # await run_discovery()
     
     # Start background polling task
     print("Starting background polling task...")
@@ -84,11 +84,4 @@ app = FastAPI(
 app.include_router(devices.router)
 app.include_router(device_polling.router)
 app.include_router(query.router)
-
-@app.get("/")
-async def root():
-    return {"message": "SNMP Device Monitor API is running"}
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+app.include_router(alert.router)
