@@ -1,5 +1,6 @@
 import asyncio
 from typing import Optional
+from venv import logger
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from pysnmp.hlapi.v3arch.asyncio import (
@@ -14,7 +15,7 @@ from pysnmp.hlapi.v3arch.asyncio import (
 )
 from app.core import database
 from app.config.settings import settings
-from snmp import schemas
+from app.core import schemas
 from abc import ABC, abstractmethod
 from services.device_service import DeviceRepository, SQLAlchemyDeviceRepository, update_device
 
@@ -169,7 +170,7 @@ async def device_discovery(
             await update_device(device_info, repo) 
             return device_info
         except Exception as e:
-            print(f"Error saving device {host}: {e}")
+            logger.error(f"Error saving device {host}: {e}")
             return device_info
 
     return None

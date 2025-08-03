@@ -4,7 +4,7 @@ from fastapi import Depends, APIRouter, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.core import database
-from snmp import schemas
+from app.core import schemas
 from services import device_service, snmp_service
 from services.device_service import DeviceRepository, get_repository
 from services.snmp_service import SNMPClient, get_snmp_client

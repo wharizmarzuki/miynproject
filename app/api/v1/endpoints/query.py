@@ -5,7 +5,7 @@ import math
 from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from snmp import schemas
+from app.core import schemas
 
 class IMetricsService(ABC):
     @abstractmethod

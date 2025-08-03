@@ -3,7 +3,7 @@ from fastapi import Depends
 from sqlalchemy import exists
 from sqlalchemy.orm import Session
 from app.core import database, models
-from snmp import schemas
+from app.core import schemas
 from abc import ABC, abstractmethod
 
 

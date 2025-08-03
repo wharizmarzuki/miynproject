@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from prometheus_client import generate_latest, push_to_gateway
 from app.core import database, models
-from snmp import schemas
+from app.core import schemas
 from services.snmp_service import get_snmp_data, bulk_snmp_walk, SNMPClient, get_snmp_client
-from snmp.prometheus_model import device_up, device_info, device_cpu_utilization, device_uptime_seconds, device_memory_utilization, registry, interface_admin_status, interface_octets, interface_errors, interface_discards, interface_oper_status
+from app.core.prometheus_model import device_up, device_info, device_cpu_utilization, device_uptime_seconds, device_memory_utilization, registry, interface_admin_status, interface_octets, interface_errors, interface_discards, interface_oper_status
 from app.config.settings import settings
+from app.config.logging import logger
 
 router = APIRouter(prefix="/polling", tags=["Polling"])
 get_db = database.get_db
@@ -104,7 +105,7 @@ async def poll_device(host: str, vendor: str, client: SNMPClient = Depends(get_s
             return {"status": "failed", "host": host, "reason": "SNMP query failed"}
        
     except Exception as e:
-        print(f"Exception in poll_device: {str(e)}")  # Add logging
+        logger.error(f"Exception in poll_device: {str(e)}")  # Add logging
         device_up.labels(host=host).set(0)
         return {"status": "error", "host": host, "error": str(e)}
 
@@ -194,7 +195,7 @@ async def poll_interfaces(host: str,client: SNMPClient = Depends(get_snmp_client
         }
                
     except Exception as e:
-        print(f"Interface polling error for {host}: {str(e)}")
+        logger.error(f"Interface polling error for {host}: {str(e)}")
         return {
             "status": "error", 
             "host": host, 
