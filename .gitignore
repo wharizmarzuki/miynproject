@@ -1,5 +1,5 @@
 venv/
-registered.db
-registered.db-wal
-registered.db-shm
+__pycache__/
+*.db
+*.db-*
 prometheus/prometheus_data/
