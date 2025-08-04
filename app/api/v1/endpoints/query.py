@@ -144,7 +144,6 @@ async def summary_device_status(
     metrics_service: IMetricsService = Depends(get_metrics_service)
 ):
     response = await get_all_device_status(metrics_service)
-    print(response)
    
     # Navigate to the actual devices array in the nested structure
     prometheus_data = response["data"]["data"]

@@ -32,54 +32,54 @@ models.Base.metadata.create_all(engine)
 #     except Exception as e:
 #         print(f"Error during startup discovery: {str(e)}")
 
-async def run_polling():
-    """Run device polling every minute"""
-    while True:
-        try:
-            logger.info("Application starting up...")
+# async def run_polling():
+#     """Run device polling every minute"""
+#     while True:
+#         try:
+#             logger.info("Application starting up...")
             
-            db_gen = get_db()
-            db: Session = next(db_gen)
+#             db_gen = get_db()
+#             db: Session = next(db_gen)
             
-            client = get_snmp_client()
+#             client = get_snmp_client()
 
-            from app.api.v1.endpoints.polling import poll_all_device
-            await poll_all_device(db, client)
+#             from app.api.v1.endpoints.polling import poll_all_device
+#             await poll_all_device(db, client)
             
-            logger.info("Running scheduled device polling...")
+#             logger.info("Running scheduled device polling...")
             
-            db.close()
+#             db.close()
             
-        except Exception as e:
-            logger.error(f"Error during startup discovery: {str(e)}")
+#         except Exception as e:
+#             logger.error(f"Error during startup discovery: {str(e)}")
         
-        await asyncio.sleep(settings.polling_interval)
+#         await asyncio.sleep(settings.polling_interval)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Application starting up...")
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     logger.info("Application starting up...")
     
-    # # Run discovery on startup
-    # await run_discovery()
+#     # # Run discovery on startup
+#     # await run_discovery()
     
-    # Start background polling task
-    logger.info("Starting background polling task...")
-    polling_task = asyncio.create_task(run_polling())
+#     # Start background polling task
+#     logger.info("Starting background polling task...")
+#     polling_task = asyncio.create_task(run_polling())
     
-    yield
+#     yield
     
-    logger.info("Application shutting down...")
-    # Cancel background task
-    polling_task.cancel()
-    try:
-        await polling_task
-    except asyncio.CancelledError:
-        logger.error("Background polling task cancelled")
+#     logger.info("Application shutting down...")
+#     # Cancel background task
+#     polling_task.cancel()
+#     try:
+#         await polling_task
+#     except asyncio.CancelledError:
+#         logger.error("Background polling task cancelled")
 
 app = FastAPI(
     title="SNMP Device Monitor",
     description="SNMP device discovery and monitoring API",
-    lifespan=lifespan
+#    lifespan=lifespan
 )
 from app.api.middleware import add_middleware_to_app
 add_middleware_to_app(app)
